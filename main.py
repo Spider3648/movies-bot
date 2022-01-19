@@ -7,7 +7,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
 
-bot = telebot.TeleBot("5019996911:AAEFWlyNxwDCROiV7H_DlKtk5p1vfxwoaq0")
+bot = telebot.TeleBot("tokern")
 
 options = Options()
 options.headless = True
