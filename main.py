@@ -2,215 +2,194 @@ import sqlite3
 import telebot
 from telebot import types
 import time
+import os
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.firefox.options import Options
 
-bot = telebot.TeleBot("token")
+bot = telebot.TeleBot(os.environ["APITOKEN"])
 
 options = Options()
 options.headless = True
 
+#Функція для вибору випадкового фільму в базі даних
+def get_random_movie(cur):
+    for rand in cur.execute('SELECT * FROM Kino WHERE ID IN (SELECT ID FROM Kino ORDER BY RANDOM() LIMIT 1)'):
+        name = rand[1]
+        god = rand[2]
+        description = rand[3]
+        link1 = rand[4]  
 
+        with open("text.txt", "w", encoding='cp1251') as f:
+            f.write(str(name) + '\n')
+            f.write(str(god) + '\n\n')
+            f.write(str(description) + '\n\n')
+            f.write(str(link1))
+
+        msg = open("text.txt", "r", encoding='cp1251').read()
+        return msg
+
+#Функція для вибору випадкового серіалу в базі даних
+def get_random_series(cur):
+    for rand in cur.execute('SELECT * FROM Series WHERE ID IN (SELECT ID FROM Series ORDER BY RANDOM() LIMIT 1)'):
+        name = rand[1]
+        god = rand[2]
+        description = rand[3]
+        link1 = rand[4] 
+
+        with open("text.txt", "w", encoding='cp1251') as f:
+            f.write(str(name) + '\n')
+            f.write(str(god) + '\n\n')
+            f.write(str(description) + '\n\n')
+            f.write(str(link1))
+
+        msg = open("text.txt", "r", encoding='cp1251').read()
+        return msg
+    
+#Функція для вибору випадкового фільму в базі даних
+def get_movie_details(cur, word, search_by):
+    if search_by == 'name':
+        query = 'SELECT NAME, GOD, OPISANIE, LINK_STR FROM Kino WHERE NAME LIKE ? LIMIT 1'
+        rows = cur.execute(query, ('%' + word + '%',))
+    elif search_by == 'code':
+        query = 'SELECT NAME, GOD, OPISANIE, LINK_STR FROM Kino WHERE ID = ? LIMIT 1'
+        rows = cur.execute(query, (word,))
+    else:
+        query = 'SELECT NAME, GOD, OPISANIE, LINK_STR FROM Kino WHERE OPISANIE LIKE ? LIMIT 1'
+        rows = cur.execute(query, ('%' + word + '%',))
+
+    row = rows.fetchone()
+
+    if row is None:
+        return "Фільм не знайдено!"
+
+    name, god, opisanie, link1 = row
+
+    with open("text.txt", "w", encoding='cp1251') as f:
+        f.write(str(name) + '\n')
+        f.write(str(god) + '\n\n')
+        f.write(str(opisanie) + '\n\n')
+        f.write(str(link1))
+
+    msg = open("text.txt", "r", encoding='cp1251').read()
+    return msg
+
+#Функція для вибору випадкового серіалу в базі даних
+def get_serie_details(cur, word, search_by):
+
+    if search_by == 'name':
+        query = 'SELECT NAME, GOD, OPISANIE, LINK_STR FROM Series WHERE NAME LIKE ? LIMIT 1'
+        rows = cur.execute(query, ('%' + word + '%',))
+    elif search_by == 'code':
+        query = 'SELECT NAME, GOD, OPISANIE, LINK_STR FROM Series WHERE ID = ? LIMIT 1'
+        rows = cur.execute(query, (word,))
+    else:
+        query = 'SELECT NAME, GOD, OPISANIE, LINK_STR FROM Series WHERE OPISANIE LIKE ? LIMIT 1'
+        rows = cur.execute(query, ('%' + word + '%',))
+
+    row = rows.fetchone()
+
+    if row is None:
+        return "Серіал не знайдено!"
+
+    name, god, opisanie, link1 = row
+
+    with open("text.txt", "w", encoding='cp1251') as f:
+        f.write(str(name) + '\n')
+        f.write(str(god) + '\n\n')
+        f.write(str(opisanie) + '\n\n')
+        f.write(str(link1))
+
+    msg = open("text.txt", "r", encoding='cp1251').read()
+    return msg
+
+#Функція для вибору типу пошуку
+def handle_movie_search(message):
+    chat_id = message.chat.id
+    if message.text == 'Пошук фільму за кодом':
+        bot.send_message(chat_id, "Введіть код:")
+        bot.register_next_step_handler(message, search_movies, search_by='code')
+    elif message.text == 'Пошук серіалу за кодом':
+        bot.send_message(chat_id, "Введіть код:")
+        bot.register_next_step_handler(message, search_series, search_by='code')
+    elif message.text == 'Пошук фільму за назвою':
+        bot.send_message(chat_id, "Введіть назву:")
+        bot.register_next_step_handler(message, search_movies, search_by='name')
+    elif message.text == 'Пошук серіалу за назвою':
+        bot.send_message(chat_id, "Введіть назву:")
+        bot.register_next_step_handler(message, search_series, search_by='name')
+    elif message.text == 'Пошук фільму за описом':
+        bot.send_message(chat_id, "Введіть опис:")
+        bot.register_next_step_handler(message, search_movies, search_by='description')
+    elif message.text == 'Пошук серіалу за описом':
+        bot.send_message(chat_id, "Введіть опис:")
+        bot.register_next_step_handler(message, search_series, search_by='description')
+
+#Загальна функція для пошуку фільмів
+def search_movies(message, search_by):
+    chat_id = message.chat.id
+    word = message.text
+    db = sqlite3.connect('Kino.db')
+    cur = db.cursor()
+    if search_by == 'name' or search_by == 'description' or search_by == 'code':
+        bot.send_message(chat_id, "Обробляю запит...")
+        movie_details = get_movie_details(cur, word, search_by)
+        bot.send_message(chat_id, movie_details)
+
+    else:
+        bot.send_message(chat_id, "Невірний запит. Спробуйте ще раз.")
+    db.close()
+
+#Загальна функція для пошуку серіалів
+def search_series(message, search_by):
+    chat_id = message.chat.id
+    word = message.text
+    db = sqlite3.connect('Series.db')
+    cur = db.cursor()
+    if search_by == 'name' or search_by == 'description' or search_by == 'code':
+        bot.send_message(chat_id, "Обробляю запит...")
+        movie_details = get_serie_details(cur, word, search_by)
+        bot.send_message(chat_id, movie_details)
+    else:
+        bot.send_message(chat_id, "Невірний запит. Спробуйте ще раз.")
+    db.close()
+
+#Функція для встановлення кнопок та вітального повідомлення
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     chat_id = message.chat.id
-    markup = types.ReplyKeyboardMarkup(row_width=3)
-    itembtn1 = types.KeyboardButton('Поиск по названию')
-    itembtn2 = types.KeyboardButton('Поиск по описанию')
-    itembtn3 = types.KeyboardButton('Случайный')
-    markup.add(itembtn1, itembtn2, itembtn3)
-    bot.send_message(chat_id, "Что найти?", reply_markup=markup)
+    markup = types.ReplyKeyboardMarkup(row_width=3, resize_keyboard=True)
+    itembtn1 = types.KeyboardButton('Пошук фільму за кодом')
+    itembtn2 = types.KeyboardButton('Пошук серіалу за кодом')
+    itembtn3 = types.KeyboardButton('Пошук фільму за назвою')
+    itembtn4 = types.KeyboardButton('Пошук серіалу за назвою')
+    itembtn5 = types.KeyboardButton('Пошук фільму за описом')
+    itembtn6 = types.KeyboardButton('Пошук серіалу за описом')
+    itembtn7 = types.KeyboardButton('Випадковий фільм')
+    itembtn8 = types.KeyboardButton('Випадковий серіал')
+    markup.add(itembtn1, itembtn2, itembtn3, itembtn4, itembtn5, itembtn6, itembtn7, itembtn8)
+    bot.send_message(chat_id, "Вітаю. Цей бот допоможе вам знайти ваші улюблені фільми та серіали. Що вам знайти?", reply_markup=markup)
 
+#Функція для обробки запитів користувача
 @bot.message_handler(func=lambda message: True)
 def echo_all(message):
-    s = ''
-    if message.text == 'Поиск по названию':
-        s = "название"
-        chat_id = message.chat.id
-        bot.send_message(chat_id, "Введите название:")
-    elif message.text == 'Поиск по описанию':
-        s = "описание"
-        chat_id = message.chat.id
-        bot.send_message(chat_id, "Введите описание:")
-    elif message.text == 'Случайный':
-        chat_id = message.chat.id
-        bot.send_message(chat_id, "Обрабатываю запрос...")
-
-        db = sqlite3.connect('Triangle_Kino.db')
+    chat_id = message.chat.id
+    if message.text in ['Пошук фільму за кодом', 'Пошук серіалу за кодом', 'Пошук фільму за назвою', 'Пошук серіалу за назвою', 'Пошук фільму за описом', 'Пошук серіалу за описом']:
+        handle_movie_search(message)
+    elif message.text == 'Випадковий фільм':
+        bot.send_message(chat_id, "Обробляю запит...")
+        db = sqlite3.connect('Kino.db')
         cur = db.cursor()
-
-        for rand in cur.execute('SELECT * FROM Triangle_Kino WHERE ID IN (SELECT ID FROM Triangle_Kino ORDER BY RANDOM() LIMIT 1)'):
-            print(rand)
-            name = rand[2]
-            god = rand[3]
-            description = rand[4]
-            link1 = rand[5]
-
-            q = open("text.txt", "w")
-            q.write(str(name) + '\n')
-            q.write(str(god) + '\n\n')
-            q.write(str(description) + '\n\n')
-            q.write(str(link1))
-            q.close()
-
-            msg = open("text.txt", "r").read()
-            chat_id = message.chat.id
-            bot.send_message(chat_id, msg)
-    else:
-        chat_id = message.chat.id
-        bot.send_message(chat_id, "Обрабатываю запрос...")
-
-        db = sqlite3.connect('Triangle_Kino.db')
+        random_movie = get_random_movie(cur)
+        bot.send_message(chat_id, random_movie)
+        db.close()
+    elif message.text == 'Випадковий серіал':
+        bot.send_message(chat_id, "Обробляю запит...")
+        db = sqlite3.connect('Series.db')
         cur = db.cursor()
-
-        word = message.text
-        r = open("text.txt", "r")
-        readR = r.read()
-
-        if readR == "название":
-            driver = webdriver.Firefox(options=options)
-
-            name_list = []
-            opisanie_list = []
-            god_list = []
-            Link1_list = []
-            Link2_list = []
-
-            for name in cur.execute('SELECT NAME FROM Triangle_Kino WHERE NAME LIKE ?', ('%' + word + '%',)):
-                name_list.append(name[0])
-
-            for description in cur.execute('SELECT OPISANIE FROM Triangle_Kino WHERE NAME LIKE ?', ('%' + word + '%',)):
-                opisanie_list.append(description[0])
-
-            for god in cur.execute('SELECT GOD FROM Triangle_Kino WHERE NAME LIKE ?', ('%' + word + '%',)):
-                god_list.append(god[0])
-
-            for Link1 in cur.execute('SELECT LINK_STR FROM Triangle_Kino WHERE NAME LIKE ?', ('%' + word + '%',)):
-                Link1_list.append(Link1[0])
-
-            for film in Link1_list:
-                try:
-                    driver.get(film)
-                    time.sleep(2)
-                    driver.switch_to.frame(driver.find_element_by_tag_name("iframe"))
-                    element2 = driver.find_element(By.XPATH, """/html/body/div/pjsdiv/pjsdiv[1]/video""")
-
-                    itog = str(element2.get_attribute('src'))
-                    a1 = itog.split('/240.mp4')
-                    a2 = str(a1[0]) + "/720.mp4"
-                    print(a2)
-
-                    Link2_list.append(a2)
-
-                except:
-                    print("Ошибка")
-
-                    Link2_list.append("Ошибка")
-
-            driver.quit()
-
-            i = 0
-            while i < len(name_list):
-                q = open("text.txt", "w")
-                q.write(str(name_list[i]))
-                q.write('\n')
-                q.write(str(god_list[i]))
-                q.write('\n')
-                q.write('\n')
-                q.write(str(opisanie_list[i]))
-                q.write('\n')
-                q.write('\n')
-                q.write(str(Link1_list[i]))
-                q.write('\n')
-                q.write('\n')
-                q.write(str(Link2_list[i]))
-                q.close()
-
-                msg = open("text.txt", "r")
-                msgR = msg.read()
-                chat_id = message.chat.id
-                bot.send_message(chat_id, msgR)
-                time.sleep(1)
-                i = i + 1
-
-        elif readR == "описание":
-
-            driver = webdriver.Firefox(options=options)
-            z = open('text.txt', 'w')
-            z.seek(0)
-            z.close()
-            name_list = []
-            opisanie_list = []
-            god_list = []
-            Link1_list = []
-            Link2_list = []
-            for name in cur.execute('SELECT NAME FROM Triangle_Kino WHERE OPISANIE LIKE ?', ('%' + word + '%',)):
-                print(name)
-                name_list.append(name[0])
-
-            for description in cur.execute('SELECT OPISANIE FROM Triangle_Kino WHERE OPISANIE LIKE ?', ('%' + word + '%',)):
-                print(description)
-                opisanie_list.append(description[0])
-
-            for god in cur.execute('SELECT GOD FROM Triangle_Kino WHERE OPISANIE LIKE ?', ('%' + word + '%',)):
-                print(god)
-                god_list.append(god[0])
-
-            for Link1 in cur.execute('SELECT LINK_STR FROM Triangle_Kino WHERE OPISANIE LIKE ?', ('%' + word + '%',)):
-                print(Link1)
-                Link1_list.append(Link1[0])
-
-            for film in Link1_list:
-
-                try:
-                    driver.get(film)
-                    time.sleep(2)
-
-                    driver.switch_to.frame(driver.find_element_by_tag_name("iframe"))
-                    element2 = driver.find_element(By.XPATH, """/html/body/div/pjsdiv/pjsdiv[1]/video""")
-
-                    print(element2.get_attribute('src'))
-
-                    itog = str(element2.get_attribute('src'))
-
-                    a1 = itog.split('/240.mp4')
-                    a2 = str(a1[0]) + "/720.mp4"
-                    print(a2)
-
-                    Link2_list.append(a2)
-
-                except:
-
-                    print("Ошибка")
-
-                    Link2_list.append("Ошибка")
-
-            i = 0
-            driver.quit()
-            while i < len(name_list):
-                q = open("text.txt", "w")
-                q.write(str(name_list[i]))
-                q.write('\n')
-                q.write(str(god_list[i]))
-                q.write('\n')
-                q.write('\n')
-                q.write(str(opisanie_list[i]))
-                q.write('\n')
-                q.write('\n')
-                q.write(str(Link1_list[i]))
-                q.write('\n')
-                q.write('\n')
-                q.write(str(Link2_list[i]))
-                q.close()
-
-                msg = open("text.txt", "r")
-                msgR = msg.read()
-                chat_id = message.chat.id
-                bot.send_message(chat_id, msgR)
-                time.sleep(1)
-                i = i + 1
-
+        random_movie = get_random_series(cur)
+        bot.send_message(chat_id, random_movie)
+        db.close()
 
 bot.polling()
